@@ -4,23 +4,22 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "//main": "src/index.ts",
-  "//types": "src/index.ts",
   "scripts": {
     "build": "tsup src/index.ts --minify --dts --format esm --out-dir dist"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/picomatch": "^2.3.3",
-    "tsup": "^8.0.2",
-    "vite": "^5.2.11"
+    "tsup": "^8.0.2"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^5.2.11"
   },
   "dependencies": {
     "acorn": "^8.11.3",
     "estree-walker": "^3.0.3",
+    "magic-string": "^0.30.10",
     "picomatch": "^4.0.2"
   }
 }

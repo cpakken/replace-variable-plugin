@@ -1,9 +1,9 @@
 import { parse } from 'acorn'
 import { type Node, walk } from 'estree-walker'
+import MagicString from 'magic-string'
+import path from 'path'
 import pm from 'picomatch'
-import type { Plugin } from 'vite'
-
-const { isMatch } = pm
+import { type Plugin, normalizePath } from 'vite'
 
 export interface ReplaceVariablePluginConfig {
   globs?: string[]
@@ -20,12 +20,17 @@ export function replaceVariablePlugin({
     name: 'replaceVariablePlugin',
     apply: 'build',
     renderChunk(code, chunk) {
-      if (
-        globs &&
-        chunk.facadeModuleId &&
-        !globs.some((glob) => isMatch(chunk.facadeModuleId!, glob))
-      ) {
-        return null
+      if (globs && chunk.facadeModuleId) {
+        const { facadeModuleId } = chunk
+
+        const absoluteGlobs = globs.map((glob) =>
+          normalizePath(path.isAbsolute(glob) ? glob : path.resolve(process.cwd(), glob))
+        )
+
+        if (!absoluteGlobs.some((glob) => pm(glob)(facadeModuleId))) {
+          // console.log('SKIPPED:', absoluteGlobs, chunk.facadeModuleId)
+          return null
+        }
       }
 
       const replaced = replaceVariable(code, varName, replacement)
@@ -65,7 +70,14 @@ export function replaceVariable(code: string, varName: string, replacement: stri
     return null
   }
 
-  // console.log(code.slice(startIndex, endIndex))
+  const s = new MagicString(code)
 
-  return `${code.slice(0, startIndex)} = ${replacement}${code.slice(endIndex)}`
+  // console.log(code.slice(startIndex, endIndex))
+  // return `${code.slice(0, startIndex)} = ${replacement}${code.slice(endIndex)}`
+  s.overwrite(startIndex, endIndex, ` = ${replacement}`)
+
+  return {
+    code: s.toString(),
+    map: s.generateMap({ hires: true }),
+  }
 }
