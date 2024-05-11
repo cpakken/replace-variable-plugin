@@ -1,17 +1,19 @@
 import { parse } from 'acorn'
 import { type Node, walk } from 'estree-walker'
-import { isMatch } from 'picomatch'
+import pm from 'picomatch'
 import type { Plugin } from 'vite'
+
+const { isMatch } = pm
 
 export interface ReplaceVariablePluginConfig {
   globs?: string[]
-  variableName: string
+  varName: string
   replacement: string
 }
 
-export default function replaceVariablePlugin({
+export function replaceVariablePlugin({
   globs,
-  variableName,
+  varName,
   replacement,
 }: ReplaceVariablePluginConfig): Plugin {
   return {
@@ -26,10 +28,10 @@ export default function replaceVariablePlugin({
         return null
       }
 
-      const replaced = replaceVariable(code, variableName, replacement)
+      const replaced = replaceVariable(code, varName, replacement)
 
       if (replaced) {
-        console.log('REPLACED __vitePreload:', chunk.facadeModuleId, chunk.fileName)
+        console.log(`REPLACED ${varName}:`, chunk.facadeModuleId, chunk.fileName)
       }
 
       return replaced

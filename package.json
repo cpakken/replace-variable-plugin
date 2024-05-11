@@ -2,11 +2,17 @@
   "name": "replace-variable-plugin",
   "module": "index.ts",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "//main": "src/index.ts",
+  "//types": "src/index.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --minify --dts --format esm --out-dir dist"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/picomatch": "^2.3.3",
+    "tsup": "^8.0.2",
     "vite": "^5.2.11"
   },
   "peerDependencies": {
