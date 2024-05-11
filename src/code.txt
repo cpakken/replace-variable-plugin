@@ -1,0 +1,430 @@
+const __vite__fileDeps=["assets/focusAndPaste-3vLdHe6i.js","assets/focusInput-D4_WcEDI.js"],__vite__mapDeps=i=>i.map(i=>__vite__fileDeps[i]);
+const $REGEX = Symbol();
+const stringRegex = /^\/(.+)\/([gimsuy]*)$/;
+const toRegexIfValid = (keyOrRegex) => {
+  if (keyOrRegex instanceof RegExp)
+    return keyOrRegex;
+  const match = stringRegex.exec(keyOrRegex);
+  if (match) {
+    const regexString = match[1];
+    const flags = match[2];
+    return new RegExp(regexString, flags);
+  }
+  return null;
+};
+function keyBindToRegister(bind) {
+  const regexKey = toRegexIfValid(bind.key);
+  if (regexKey) {
+    const { meta: m = {}, when, ...rest } = bind;
+    const meta = { ctrlKey: !!m.ctrl, shiftKey: !!m.shift, altKey: !!m.alt, metaKey: !!m.meta };
+    return { meta, ...processWhen(when), ...rest, key: regexKey };
+  } else {
+    const meta_key = bind.key.toUpperCase().split("+");
+    let key = meta_key.pop();
+    const meta = Object.fromEntries(
+      metaKeys.map((k) => [k, meta_key.includes(metaKeyMap[k])])
+    );
+    const { when, ...rest } = bind;
+    return { ...rest, key, meta, ...processWhen(when) };
+  }
+}
+const processWhen = (when) => {
+  if (!when)
+    return null;
+  const whenInverse = when.startsWith("!");
+  return { when: whenInverse ? when.slice(1) : when, whenInverse };
+};
+function keycontrols(commands, conditions, context) {
+  return (keybinds) => {
+    const registersMap = { [$REGEX]: [] };
+    for (const keybind of keybinds) {
+      const register = keyBindToRegister(keybind);
+      const { key } = register;
+      if (typeof key === "string") {
+        if (!registersMap[key])
+          registersMap[key] = [];
+        registersMap[key].push(register);
+      } else {
+        registersMap[$REGEX].push(register);
+      }
+    }
+    return (e) => {
+      const { key: keyRaw } = e;
+      if (!keyRaw)
+        return [];
+      let key = keyRaw.toUpperCase();
+      if (key === " ")
+        key = "SPACE";
+      const registers = [
+        ...registersMap[key] ?? [],
+        ...registersMap[$REGEX].filter((r) => r.key.test(keyRaw)) ?? []
+        //test raw key
+      ];
+      if (!registers.length)
+        return [];
+      const triggered = [];
+      for (const register of registers) {
+        const { meta, command, when, whenInverse, exactMeta = true } = register;
+        if (when) {
+          const condition = conditions[when](e, context);
+          if (whenInverse ? condition : !condition)
+            continue;
+        }
+        if (exactMeta) {
+          if (!metaKeys.every((k) => meta[k] === e[k]))
+            continue;
+        } else {
+          if (!metaKeys.every((k) => !meta[k] || e[k]))
+            continue;
+        }
+        const commandFn = commands[command];
+        triggered.push([register, commandFn(e, context)]);
+      }
+      return triggered;
+    };
+  };
+}
+const metaKeyMap = {
+  ctrlKey: "CTRL",
+  shiftKey: "SHIFT",
+  altKey: "ALT",
+  metaKey: "META"
+};
+const metaKeys = Object.keys(metaKeyMap);
+const metaKeyMap_ = {
+  //(note: metaKeyMap is for keybinding, not event.key)
+  ...metaKeyMap,
+  //event.key for ctrl is 'CONTROL'
+  ctrlKey: "CONTROL"
+};
+function manageTriggers(onEvent, ignoreTrigger) {
+  const engagedKeys = /* @__PURE__ */ new Set();
+  const engage = (event, triggers) => {
+    if (!triggers) {
+      return release(event, true);
+    }
+    if (triggers && !triggers.length || ignoreTrigger && triggers.every(ignoreTrigger))
+      return;
+    onEvent(event);
+    for (const trigger of triggers) {
+      const [{ key, meta }] = trigger;
+      if (ignoreTrigger == null ? void 0 : ignoreTrigger(trigger))
+        continue;
+      if (typeof key !== "string")
+        continue;
+      engagedKeys.add(key.toUpperCase());
+      for (let key2 in metaKeyMap_) {
+        if (meta[key2]) {
+          engagedKeys.add(metaKeyMap_[key2]);
+        }
+      }
+    }
+  };
+  const release = (event, keep) => {
+    const key = event.key.toUpperCase();
+    if (engagedKeys.has(key)) {
+      onEvent(event);
+      if (!keep)
+        engagedKeys.delete(key);
+    }
+  };
+  return [engage, release];
+}
+const scriptRel = "modulepreload";
+const assetsURL = function(dep) {
+  return "/" + dep;
+};
+const seen = {};
+const __vitePreload = function preload(baseModule, deps, importerUrl) {
+  let promise = Promise.resolve();
+  if (deps && deps.length > 0) {
+    const links = document.getElementsByTagName("link");
+    const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
+    const cspNonce = (cspNonceMeta == null ? void 0 : cspNonceMeta.nonce) || (cspNonceMeta == null ? void 0 : cspNonceMeta.getAttribute("nonce"));
+    promise = Promise.all(deps.map((dep) => {
+      dep = assetsURL(dep);
+      if (dep in seen)
+        return;
+      seen[dep] = true;
+      const isCss = dep.endsWith(".css");
+      const cssSelector = isCss ? '[rel="stylesheet"]' : "";
+      const isBaseRelative = !!importerUrl;
+      if (isBaseRelative) {
+        for (let i = links.length - 1; i >= 0; i--) {
+          const link2 = links[i];
+          if (link2.href === dep && (!isCss || link2.rel === "stylesheet")) {
+            return;
+          }
+        }
+      } else if (document.querySelector(`link[href="${dep}"]${cssSelector}`)) {
+        return;
+      }
+      const link = document.createElement("link");
+      link.rel = isCss ? "stylesheet" : scriptRel;
+      if (!isCss) {
+        link.as = "script";
+        link.crossOrigin = "";
+      }
+      link.href = dep;
+      if (cspNonce) {
+        link.setAttribute("nonce", cspNonce);
+      }
+      document.head.appendChild(link);
+      if (isCss) {
+        return new Promise((res, rej) => {
+          link.addEventListener("load", res);
+          link.addEventListener("error", () => rej(new Error(`Unable to preload CSS for ${dep}`)));
+        });
+      }
+    }));
+  }
+  return promise.then(() => baseModule()).catch((err) => {
+    const e = new Event("vite:preloadError", { cancelable: true });
+    e.payload = err;
+    window.dispatchEvent(e);
+    if (!e.defaultPrevented) {
+      throw err;
+    }
+  });
+};
+const isHighlighted = (element) => {
+  const { selectionStart, selectionEnd, value } = element;
+  return selectionStart === 0 && value.length > 0 && selectionEnd === value.length;
+};
+const cursorToEnd = (element) => {
+  const { value } = element;
+  return element.setSelectionRange(value.length, value.length);
+};
+const cursorToStart = (element) => {
+  return element.setSelectionRange(0, 0);
+};
+const lazy = (getPromise) => {
+  let loading = null;
+  let resolved = null;
+  return async () => {
+    if (resolved)
+      return resolved;
+    if (loading)
+      return await loading;
+    resolved = await (loading = getPromise());
+    loading = null;
+    return resolved;
+  };
+};
+function createLazyFn(fn, ...bindArgs) {
+  const lazyFn = lazy(fn);
+  return async (...args) => {
+    return (await lazyFn())(...bindArgs.length ? bindArgs : args);
+  };
+}
+const isInput = (target) => {
+  return target.tagName === "INPUT";
+};
+const isButton = (target) => {
+  return target.tagName === "BUTTON";
+};
+const isTextArea = (target) => {
+  return target.tagName === "TEXTAREA";
+};
+const isContentEditable = (target) => {
+  return target.isContentEditable;
+};
+const isAnchor = (target) => {
+  return target.tagName === "A";
+};
+const isDivElement = (target) => {
+  return target.tagName === "DIV";
+};
+const isForm = (target) => {
+  return target.tagName === "FORM";
+};
+const isHTMLElement = (el) => el instanceof HTMLElement;
+const isEditable = (target) => {
+  if (!target)
+    return false;
+  const { nodeName } = target;
+  if (nodeName === "INPUT")
+    return true;
+  if (nodeName === "TEXTAREA")
+    return true;
+  if (isContentEditable(target))
+    return true;
+  return false;
+};
+const syntheticTag = Symbol();
+const keyboardEvents = ["keydown", "keypress", "keyup"];
+const syntheticKeystroke = (key, { target, keyCode, ...rest } = {}) => {
+  const el = target || document.activeElement;
+  const isKey = key.match(/^[\w\s]$/i);
+  const options = { key, bubbles: true, target: el, keyCode, which: keyCode, ...rest };
+  console.log("syntheticKeystroke", key, options);
+  const eventsToDispatch = keyboardEvents.map((type) => {
+    return new KeyboardEvent(type, options);
+  });
+  if (isKey && !options.ctrlKey) {
+    eventsToDispatch.push(
+      new Event("change", { bubbles: true }),
+      new InputEvent("input", { bubbles: true, inputType: "insertText", data: key })
+    );
+  }
+  eventsToDispatch.forEach((event) => {
+    event[syntheticTag] = syntheticTag;
+    el.dispatchEvent(event);
+  });
+};
+const isSyntheticEvent = (event) => event[syntheticTag] === syntheticTag;
+const downArrow = () => {
+  return syntheticKeystroke("ArrowDown", { code: "ArrowDown", keyCode: 40 });
+};
+const upArrow = () => {
+  return syntheticKeystroke("ArrowUp", { code: "ArrowUp", keyCode: 38 });
+};
+const blur = () => {
+  var _a;
+  const activeElement = document.activeElement;
+  if (!activeElement)
+    return;
+  if (isTextArea(activeElement) || isInput(activeElement)) {
+    if (isHighlighted(activeElement)) {
+      return cursorToEnd(activeElement);
+    }
+    (_a = activeElement == null ? void 0 : activeElement.blur) == null ? void 0 : _a.call(activeElement);
+    syntheticKeystroke("Escape", { code: "Escape", keyCode: 27 });
+    document.body.click();
+  }
+};
+const getAttributeValues = (el, attributes, lowerCase) => {
+  const values = [];
+  for (const attr of attributes) {
+    let value = attr === "textContent" ? el.textContent : el.getAttribute(attr);
+    if (lowerCase)
+      value = (value == null ? void 0 : value.toLowerCase()) || null;
+    if (value)
+      values.push(value);
+  }
+  return values;
+};
+const patternMatcher = (patterns) => {
+  return (tests) => {
+    if (!Array.isArray(patterns)) {
+      patterns = [patterns];
+    }
+    for (const test of tests) {
+      if (test && patterns.some(
+        (regexOrString) => typeof regexOrString === "string" ? test.includes(regexOrString) : regexOrString.test(test)
+      )) {
+        return true;
+      }
+    }
+    return false;
+  };
+};
+const whenIsEditable = ({ target }) => isEditable(target);
+const whenIsSearchResults = ({ target }) => {
+  console.log("whenIsSearchResults", target);
+  if (target instanceof HTMLElement && target.offsetParent) {
+    return patternMatcher("search")(
+      getAttributeValues(target.offsetParent, ["aria-label", "class"], true)
+    );
+  }
+  return false;
+};
+const whenIsNavigatable = (e) => {
+  return whenIsEditable(e) || whenIsSearchResults(e);
+};
+const createHandler = keycontrols(
+  {
+    //Focus specific
+    focusInput: createLazyFn(() => __vitePreload(() => import("./focusInput-D4_WcEDI.js").then((n) => n.c), true ? [] : void 0).then((m) => m.focusInput), true),
+    focusAndPaste: createLazyFn(() => __vitePreload(() => import("./focusAndPaste-3vLdHe6i.js"), true ? __vite__mapDeps([0,1]) : void 0).then((m) => m.focusAndPaste)),
+    focusPasteSubmit: createLazyFn(() => __vitePreload(() => import("./focusAndPaste-3vLdHe6i.js"), true ? __vite__mapDeps([0,1]) : void 0).then((m) => m.focusPasteSubmit)),
+    blur,
+    //Input specific
+    downArrow,
+    upArrow,
+    cursorToStart: ({ target }) => cursorToStart(target),
+    cursorToEnd: ({ target }) => cursorToEnd(target)
+  },
+  {
+    isEditable: whenIsEditable,
+    isNavigatable: whenIsNavigatable
+  }
+);
+const keydownHandler = createHandler([
+  //Focus
+  { key: "/", command: "focusInput", when: "!isEditable" },
+  { key: "CTRL+/", command: "focusAndPaste", when: "!isEditable" },
+  { key: "CTRL+Enter", command: "focusPasteSubmit", when: "!isEditable" },
+  { key: "Escape", command: "blur", when: "isEditable" },
+  // { key: 'Ctrl+P', command: 'blur', when: 'isEditable' },
+  //Navigation
+  { key: "CTRL+J", command: "downArrow", when: "isNavigatable" },
+  { key: "CTRL+K", command: "upArrow", when: "isNavigatable" },
+  { key: "CTRL+L", command: "cursorToEnd", when: "isEditable" },
+  { key: "CTRL+H", command: "cursorToStart", when: "isEditable" }
+]);
+function listenEvent(targetNode, eventName, eventHandler, options) {
+  targetNode.addEventListener(eventName, eventHandler, options);
+  return () => {
+    targetNode.removeEventListener(
+      eventName,
+      eventHandler,
+      options
+    );
+  };
+}
+function listenFocusChange(node, callback, options) {
+  const disposeFocus = listenEvent(node, "focus", () => callback(true), options);
+  const disposeBlur = listenEvent(node, "blur", () => callback(false), options);
+  return () => {
+    disposeFocus();
+    disposeBlur();
+  };
+}
+function listenActiveElementChange(callback, options) {
+  const onActiveElementChange = () => callback(document.activeElement);
+  return listenFocusChange(document, onActiveElementChange, options);
+}
+const stopEvent = (event) => {
+  event.stopImmediatePropagation();
+  event.stopPropagation();
+  event.preventDefault();
+};
+const startKeyboardController = () => {
+  const [engage, release] = manageTriggers(stopEvent, ([, result]) => result === true);
+  const keydown = (event) => {
+    if (isSyntheticEvent(event)) {
+      return;
+    }
+    const triggers = keydownHandler(event);
+    engage(event, triggers);
+  };
+  const disposeKeyDown = listenEvent(window, "keydown", keydown, { capture: true });
+  const disposeKeyPress = listenEvent(window, "keypress", engage, { capture: true });
+  const disposeKeyUp = listenEvent(window, "keyup", release, { capture: true });
+  return {
+    dispose: () => {
+      disposeKeyDown();
+      disposeKeyPress();
+      disposeKeyUp();
+    }
+  };
+};
+console.log("Keysnapp INPUTS content script!");
+startKeyboardController();
+export {
+  isForm as a,
+  isHTMLElement as b,
+  listenEvent as c,
+  isButton as d,
+  isAnchor as e,
+  isDivElement as f,
+  getAttributeValues as g,
+  isContentEditable as h,
+  isInput as i,
+  isEditable as j,
+  listenActiveElementChange as l,
+  patternMatcher as p,
+  syntheticKeystroke as s
+};
+//# sourceMappingURL=index.ts-By1_xQNe.js.map
